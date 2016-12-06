@@ -1,0 +1,21 @@
+Data should be extracted fr every country and use the same features as chosen for the prototype model
+Provide the R squared results for every country - for above.
+
+	1. choose a Client/Partner with more data.
+	2. get the reporting data for that client.
+
+country wise collection
+
+TwitterAdStatService
+AbstractNewTwitterAdLevelStatsService
+First thing - 
+	get the ad stat understood. Does it have the bidding information? will I have to extract the bidding/other info from somewhere else?
+	Then export the ones segmented by country and use for training.
+	
+	How do the break downs work for Twitter anyway?	
+	
+Second thing - 
+	write code to confirm if enough samples exist that have just one country in the break down?
+		this is time sensitive.
+	If they do, use gender targeting as well. How will the break down work for Twitter in this case?
+	

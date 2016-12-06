@@ -1,0 +1,21 @@
+Worked on extracting columns from the sample data. We chose columns that could be used for initial training. 
+Chosen Columns: 
+    Ad Delivery Status
+    Automatically Set Bid
+    Bid Type
+    Budget Pacing
+    Max Bid
+    Paid Initiative Daily Budget
+    Paid Initiative Lifetime Budget
+    Clicks/Impressions 
+Facing the “scale” problem in MSE, we migrated to using R-Squared as the error statistic. R-squared is a metric used for testing a model prediction ability.
+It calculates the ratio of variance captured by the model against the variance in the original data.
+We trained the model using non linear relations using the MATLAB code :
+link = @(mu) log(mu ./ (1-mu));
+derlink = @(mu) 1 ./ (mu .* (1-mu));
+invlink = @(resp) 1 ./ (1 + exp(-resp));
+F = {link, derlink, invlink};
+b = glmfit(X,Y,'binomial','link',F);
+The models trained using made some valid predictions for the first time. They were shared on the group and have attached them with the mail.
+Best Rsquared result - 0.66
+MSE - 3.56E-06

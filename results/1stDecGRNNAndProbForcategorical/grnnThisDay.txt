@@ -1,0 +1,64 @@
+For Spread - 0.9
+
+Train:
+Rsquared :0.008694706217034
+MSE : 1.020625604378143e
+
+Test : 
+Rsquared : 0.053426168656540
+MSE : 1.764980021515669e-06
+
+
+GRNN, For Spread - 0.4
+
+Training Set:
+Rsquared : 0.0800
+MSE : 8.3345e-06
+
+Test : 
+Rsquared : 0.7840
+MSE : 2.3308e-06
+
+
+We then removed the outliers with conversion > 0.005 and 0.001 in the default value for the max bid and the duration
+Spread = 0.4
+rSquaredTrain =
+
+    0.0729
+
+
+mseTrain =
+
+   3.2056e-07
+
+
+rSquaredTest =
+
+    0.0299
+
+
+mseTest =
+
+   5.4595e-07
+   
+   
+I reverted the default value to -1.
+Spread  - 0.4
+rSquaredTrain =
+
+    0.0869
+
+
+mseTrain =
+
+   2.9328e-07
+
+
+rSquaredTest =
+
+    0.0797
+
+
+mseTest =
+
+   5.5492e-07

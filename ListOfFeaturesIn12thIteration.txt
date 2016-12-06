@@ -1,0 +1,13 @@
+Max Bid
+Ad Delivery Status
+Billing Event
+Optimization Goal
+Automatically Set Bid
+Bid Type
+Budget Pacing
+Age Range
+Gender
+Duration
+Frequency Cap
+Duration Days
+conversion
