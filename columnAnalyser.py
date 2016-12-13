@@ -8,6 +8,7 @@ import pandas as pd
 SUM_OF_PROB = "SUM_OF_PROB"
 ONLY_PROB = "ONLY_PROB"
 ENUM = "CATEGORICAL"
+EQUIDISTANT = "EQUIDISTANT"
 
 EQUALS = "="
 COMMA = ","
@@ -15,14 +16,15 @@ MAX_COL_DEFAULT = -10000
 MIN_COL_DEFAULT = 10000
 DEFAULT_AGE_RANGE = "ALL"
 DEFAULT_COLUMN_VALUE = "DEFAULT_VALUE"
-DEFAULT_DURATION = -1
+DEFAULT_MAX_BID_VALUE = 0.9999
+DEFAULT_DURATION = DEFAULT_MAX_BID_VALUE
 DEFAULT_DURATION_DAYS = "None"
-DEFAULT_MAX_BID_VALUE = -1
-ITERATION_NUMBER = 12
-TRAIN_TO_DATA_PROPORTION = 0.7
+ITERATION_NUMBER = "COKE_LRG_5"
+DATA_PORTION = 1
+TRAIN_TO_TOTAL_DATA = 0.7
 FORMAT = '%m/%d/%y %H:%M'
 SKIP_VALUES_WITH_ZERO_IMPRESSIONS = True
-CATEGORICAL_TREATMENT = ENUM
+CATEGORICAL_TREATMENT = ONLY_PROB
 
 
 def process_non_categorical(output_matrix, column_name, default_value):
@@ -106,11 +108,6 @@ def increment_value_for_key_in_dict(delivery_dict, key):
     delivery_dict[key] = number + 1
 
 
-def process_categorical(column_name, output_matrix, given_categories):
-    column_array = df[column_name]
-    process_categorical_post_row_extract(column_array, column_name, given_categories, output_matrix)
-
-
 def process_categorical_post_row_extract(column_array, column_name, given_categories, output_matrix):
     processed_column_array = []
     default_category = len(given_categories) + 1
@@ -122,12 +119,6 @@ def process_categorical_post_row_extract(column_array, column_name, given_catego
                 break
         processed_column_array.append(column_value)
     output_matrix.loc[:, column_name] = pd.Series(processed_column_array)
-
-
-def process_categorical_summation_of_probabilities(column_name, output_matrix, given_categories):
-    column_array = df[column_name]
-    process_categorical_summation_of_probabilities_post_column_extract(column_array, column_name, given_categories,
-                                                                       output_matrix)
 
 
 def process_categorical_summation_of_probabilities_post_column_extract(column_array, column_name, given_categories,
@@ -156,12 +147,6 @@ def process_categorical_summation_of_probabilities_post_column_extract(column_ar
     output_matrix.loc[:, column_name] = pd.Series(probabilities_ad_delivery)
 
 
-def process_categorical_probabilities(column_name, output_matrix, given_categories):
-    column_array = df[column_name]
-    process_categorical_features_as_probabilities_post_extract(column_array, column_name, given_categories,
-                                                               output_matrix)
-
-
 def process_categorical_features_as_probabilities_post_extract(column_array, column_name, given_categories,
                                                                output_matrix):
     column_dict = dict()
@@ -184,6 +169,26 @@ def process_categorical_features_as_probabilities_post_extract(column_array, col
     probabilities_ad_delivery = []
     for column_value in processed_column_array:
         probabilities_ad_delivery.append(probabilities_dict.get(column_value))
+    output_matrix.loc[:, column_name] = pd.Series(probabilities_ad_delivery)
+
+
+def process_categorical_features_equidistant_post_extract(column_array, column_name, given_categories,
+                                                          output_matrix):
+    column_dict = dict()
+    processed_column_array = []
+    default_category = len(given_categories)
+    for column_entry in column_array:
+        column_value = default_category
+        for index, category in enumerate(given_categories):
+            if column_entry == category:
+                column_value = index
+                break
+        processed_column_array.append(column_value)
+        column_dict[column_value] = 1
+    len_categories = float(len(column_dict.keys()))
+    probabilities_ad_delivery = []
+    for column_value in processed_column_array:
+        probabilities_ad_delivery.append(float(column_value) / len_categories)
     output_matrix.loc[:, column_name] = pd.Series(probabilities_ad_delivery)
 
 
@@ -214,96 +219,120 @@ def process_frequency_capping(output_matrix):
                                                  ['Day', 'Week', 'Month', 'None'])
 
 
-def process_categorical_as_designed_post_extract(processed_duration, column_name, output_matrix, given_categories):
+def distribute_data_based_on_portion(output_matrix, list_to_skip):
+    # noinspection PyUnusedLocal
+    clear_zero_values_mask = [True for i in range(len(output_matrix))]
+    for term in list_to_skip:
+        clear_zero_values_mask[term] = False
+    clear_zero_values_mask = np.array(clear_zero_values_mask)
+    output_matrix = output_matrix[clear_zero_values_mask]
+
+    partial_data_msk = np.random.rand(len(output_matrix)) < DATA_PORTION
+    partial_output = output_matrix[partial_data_msk]
+
+    train_to_data_msk = np.random.rand(len(partial_output)) < TRAIN_TO_TOTAL_DATA
+    train, test = partial_output[train_to_data_msk], partial_output[~train_to_data_msk]
+    return output_matrix, train, test
+
+
+def get_labels_for_column(column_name):
+    column = df[column_name]
+    column_dict = dict()
+    for label in column:
+        if pd.isnull(label):
+            column_dict["NULL"] = 1
+            continue
+        column_dict[label] = 1
+    return column_dict.keys()
+
+
+def twitter_conversion(output_matrix, converted_column_name):
+    CONVERSION_RATE = "conversion"
+    IMPRESSIONS = 'Twitter Posts Impressions'
+    impressions = df[IMPRESSIONS]
+
+    CONVERTED = converted_column_name
+    converted_column = df[CONVERTED]
+
+    list_to_skip = []
+    processed_ad_delivery = []
+    for index, converted_value in enumerate(converted_column):
+        converted_float = float(converted_value)
+        impression = float(impressions[index])
+        if impression == 0:
+            processed_ad_delivery.append(0)
+            if SKIP_VALUES_WITH_ZERO_IMPRESSIONS:
+                list_to_skip.append(index)
+        else:
+            conversion_rate = converted_float / impression
+            if conversion_rate < 100.01: #all cases
+                processed_ad_delivery.append(conversion_rate) #Manual outlier removal
+            else:
+                processed_ad_delivery.append(0)
+                list_to_skip.append(index)
+    output_matrix.loc[:, CONVERSION_RATE] = pd.Series(processed_ad_delivery)
+    return list_to_skip
+
+
+def process_categorical_as_designed_post_extract(column_entries, column_name, output_matrix, given_categories):
     if CATEGORICAL_TREATMENT == SUM_OF_PROB:
         process_categorical_summation_of_probabilities_post_column_extract \
-            (processed_duration, column_name, given_categories, output_matrix)
+            (column_entries, column_name, given_categories, output_matrix)
     elif CATEGORICAL_TREATMENT == ONLY_PROB:
         process_categorical_features_as_probabilities_post_extract \
-            (processed_duration, column_name, given_categories, output_matrix)
+            (column_entries, column_name, given_categories, output_matrix)
+    elif CATEGORICAL_TREATMENT == EQUIDISTANT:
+        process_categorical_features_equidistant_post_extract \
+            (column_entries, column_name, given_categories, output_matrix)
     else:
         process_categorical_post_row_extract \
-            (processed_duration, column_name, given_categories, output_matrix)
+            (column_entries, column_name, given_categories, output_matrix)
 
 
 def process_categorical_as_designed(column_name, output_matrix, given_categories):
-    if CATEGORICAL_TREATMENT == SUM_OF_PROB:
-        process_categorical_summation_of_probabilities(column_name, output_matrix, given_categories)
-    elif CATEGORICAL_TREATMENT == ONLY_PROB:
-        process_categorical_probabilities(column_name, output_matrix, given_categories)
-    else:
-        process_categorical(column_name, output_matrix, given_categories)
+    process_categorical_as_designed_post_extract(df[column_name], column_name, output_matrix, given_categories)
 
 
 #######################################################CODE BEGINS#####################################################
-df = pd.read_csv("input/CocaColaCompany_CocaCola_TweetEngagements.csv")
+# df = pd.read_excel("input/twitter_mz_active_completed_deleted_across_partner.xlsx", sheetname="Sheet1")
+# df = pd.read_csv("input/twitter_mz_active_completed_deleted_across_partner.csv")
+df = pd.read_csv("input/CokeAllDataPromotedTweets.csv")
 output_matrix = pd.DataFrame()
 
 process_non_categorical(output_matrix, "Max Bid", DEFAULT_MAX_BID_VALUE)
 
-age_categories = ['AGE_18_TO_34', 'AGE_18_TO_49', 'AGE_13_TO_24', 'AGE_OVER_25', 'AGE_13_TO_49', 'AGE_21_TO_49',
-                  'AGE_21_TO_34', 'AGE_OVER_18', 'AGE_13_TO_34']
-country_categories = ['Brazil', 'Australia', 'Italy', 'Mexico', 'South Africa', 'France', 'Chile', 'Japan', 'Ecuador']
-
 process_categorical_as_designed('Ad Delivery Status', output_matrix, ["Delivering"])
-process_categorical_as_designed('Billing Event', output_matrix, ["ENGAGEMENT"])
-process_categorical_as_designed('Optimization Goal', output_matrix, ["ENGAGEMENT"])
-process_categorical_as_designed('Automatically Set Bid', output_matrix, ["Yes"])
-process_categorical_as_designed('Bid Type', output_matrix, ["CPA"])
-process_categorical_as_designed('Budget Pacing', output_matrix, ["Standard"])
-process_categorical_as_designed('Age Range', output_matrix, age_categories)
-process_categorical_as_designed("Gender", output_matrix, ["Male", "Female"])
+process_categorical_as_designed('Billing Event', output_matrix, get_labels_for_column("Billing Event"))
+process_categorical_as_designed('Optimization Goal', output_matrix, get_labels_for_column('Optimization Goal'))
+process_categorical_as_designed('Automatically Set Bid', output_matrix, get_labels_for_column("Automatically Set Bid"))
+process_categorical_as_designed('Bid Type', output_matrix, get_labels_for_column("Bid Type"))
+process_categorical_as_designed('Budget Pacing', output_matrix, get_labels_for_column("Budget Pacing"))
+#process_categorical_as_designed('Age range', output_matrix, get_labels_for_column('Age range'))
+
+process_categorical_as_designed("Gender", output_matrix, get_labels_for_column("Gender"))
 # process_categorical_as_designed('Countries', output_matrix, country_categories)
+
+# process_categorical_as_designed("Match Relevant Topics", output_matrix, get_labels_for_column("Match Relevant Topics"))
+# process_categorical_as_designed("Positive Sentiment", output_matrix, get_labels_for_column("Positive Sentiment"))
+# process_categorical_as_designed("User Operating System", output_matrix, get_labels_for_column("User Operating System"))
+# process_categorical_as_designed("User OS Version", output_matrix, get_labels_for_column("User OS Version"))
 
 ###########################CUSTOM COLUMNS############################
 add_duration_column(output_matrix)
 
 process_frequency_capping(output_matrix)
 
-#########################CONVERION###################################
-CONVERSION = "conversion"
-CLICKS = 'Twitter Post Link Clicks'
-IMPRESSIONS = 'Twitter Posts Impressions'
+#########################CONVERSION###################################
+list_to_skip = twitter_conversion(output_matrix, 'Twitter Post Link Clicks')
 
-clicks = df[CLICKS]
-impressions = df[IMPRESSIONS]
-
-list_to_skip = []
-
-processed_ad_delivery = []
-for index, click in enumerate(clicks):
-    clickFloat = float(click)
-    impression = float(impressions[index])
-    if clickFloat == 0 or impression == 0:
-        processed_ad_delivery.append(0)
-        if SKIP_VALUES_WITH_ZERO_IMPRESSIONS:
-            list_to_skip.append(index)
-    else:
-        conversion = clickFloat / impression
-        processed_ad_delivery.append(conversion)
-        # if conversion < 0.005:
-        #     processedAdDelivery.append(conversion) #Manual outlier removal
-        # else:
-        #     processedAdDelivery.append(0)
-        #     listToSkip.append(index)
-
-output_matrix.loc[:, CONVERSION] = pd.Series(processed_ad_delivery)
-
-msf_filter = [True for i in range(len(output_matrix))]
-for term in list_to_skip:
-    msf_filter[term] = False
-msf_filter = np.array(msf_filter)
-output_matrix = output_matrix[msf_filter]
-
-msk = np.random.rand(len(output_matrix)) < TRAIN_TO_DATA_PROPORTION
-
-train, test = output_matrix[msk], output_matrix[~msk]
+########################################################################
+output_matrix, train, test = distribute_data_based_on_portion(output_matrix, list_to_skip)
 
 # output_matrix.to_csv("featuresUsedIn" + str(ITERATION_NUMBER) + "thIteration.csv")
-train.to_csv("featureDataUsedIn" + str(ITERATION_NUMBER) + "thIteration_TRAIN.csv")
-test.to_csv("featureDataUsedIn" + str(ITERATION_NUMBER) + "thIteration_TEST.csv")
+train.to_csv("featureDataUsedIn" + str(ITERATION_NUMBER) + "thIteration_TRAIN_" + CATEGORICAL_TREATMENT + ".csv")
+test.to_csv("featureDataUsedIn" + str(ITERATION_NUMBER) + "thIteration_TEST_" + CATEGORICAL_TREATMENT + ".csv")
 
-feature_file = open("ListOfFeaturesIn" + str(ITERATION_NUMBER) + "thIteration.txt", 'w')
+feature_file = open("ListOfFeaturesIn" + str(ITERATION_NUMBER) + "thIteration_" + CATEGORICAL_TREATMENT + ".txt", 'w')
 for item in list(train.columns.values):
     feature_file.write("%s\n" % item)
 
