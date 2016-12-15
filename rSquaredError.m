@@ -22,11 +22,11 @@ for index = 1:length(YTEST)
     denominator = denominator + denom * denom;
 end
 
-X = 1:length(YTEST);
-
-figure
-axis([-inf,inf,0,0.010])
-plot(X,YTEST,'--go',X,YTESTFIT,':r*')
+% X = 1:length(YTEST);
+% 
+% figure
+% axis([-inf,inf,0,0.010])
+% plot(X,YTEST,'--go',X,YTESTFIT,':r*')
 
 error = numerator/denominator;
-error
+end

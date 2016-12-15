@@ -1,6 +1,6 @@
 function grnnTestCode()
 
-TAG = 'COKE_TWITTER_LARGE_PORTION';
+TAG = 'COKE_TWITTER_FULL_DATA';
 
 FEATURE_START_INDEX = 2;
 FEATURE_STOP_INDEX = 12;
@@ -18,8 +18,7 @@ model_error_file_name = strcat('resultant_error/model_error_', TAG, '.csv');
 errorOutFile=fopen(model_error_file_name,'w');
 fprintf(errorOutFile, 'Spread,TrainR-Squared,TrainMSE,TestR-Squared,TestMSE\n');
 
-for spread = [0.4, 0.6, 0.8]
-    spread
+for spread = [0.4]
     %Train the model
     net = newgrnn(XTRAIN', YTRAIN', spread);
 
@@ -57,6 +56,14 @@ for spread = [0.4, 0.6, 0.8]
     prediction_file_name = strcat('predictions/model_predictions_on_TEST_spread_', num2str(spread), '_rsquared_', num2str(rSquaredTest), '_mse_', num2str(mseTest), TAG, '.csv');
     fid=fopen(prediction_file_name,'w');
     fprintf(fid, 'actual,prediction\n');
+    for idx = 1:length(YTEST)
+        actual = YTEST(idx);
+        prediction = YTESTFIT(idx);
+        fprintf(fid, '%f,%f\n', actual, prediction);
+    end
+    
+    prediction_file_name = 'weighted_mean/testGRNN.csv';
+    fid=fopen(prediction_file_name,'w');
     for idx = 1:length(YTEST)
         actual = YTEST(idx);
         prediction = YTESTFIT(idx);

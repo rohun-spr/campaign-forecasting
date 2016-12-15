@@ -19,12 +19,12 @@ DEFAULT_COLUMN_VALUE = "DEFAULT_VALUE"
 DEFAULT_MAX_BID_VALUE = 0.9999
 DEFAULT_DURATION = DEFAULT_MAX_BID_VALUE
 DEFAULT_DURATION_DAYS = "None"
-ITERATION_NUMBER = "COKE_LRG_5"
+ITERATION_NUMBER = "COKE_LRG_CAT_1"
 DATA_PORTION = 1
 TRAIN_TO_TOTAL_DATA = 0.7
 FORMAT = '%m/%d/%y %H:%M'
 SKIP_VALUES_WITH_ZERO_IMPRESSIONS = True
-CATEGORICAL_TREATMENT = ONLY_PROB
+CATEGORICAL_TREATMENT = ENUM
 
 
 def process_non_categorical(output_matrix, column_name, default_value):
@@ -232,7 +232,7 @@ def distribute_data_based_on_portion(output_matrix, list_to_skip):
 
     train_to_data_msk = np.random.rand(len(partial_output)) < TRAIN_TO_TOTAL_DATA
     train, test = partial_output[train_to_data_msk], partial_output[~train_to_data_msk]
-    return output_matrix, train, test
+    return partial_output, train, test
 
 
 def get_labels_for_column(column_name):
@@ -328,7 +328,7 @@ list_to_skip = twitter_conversion(output_matrix, 'Twitter Post Link Clicks')
 ########################################################################
 output_matrix, train, test = distribute_data_based_on_portion(output_matrix, list_to_skip)
 
-# output_matrix.to_csv("featuresUsedIn" + str(ITERATION_NUMBER) + "thIteration.csv")
+#output_matrix.to_csv("featuresUsedIn" + str(ITERATION_NUMBER) + "thIteration.csv")
 train.to_csv("featureDataUsedIn" + str(ITERATION_NUMBER) + "thIteration_TRAIN_" + CATEGORICAL_TREATMENT + ".csv")
 test.to_csv("featureDataUsedIn" + str(ITERATION_NUMBER) + "thIteration_TEST_" + CATEGORICAL_TREATMENT + ".csv")
 
@@ -336,7 +336,7 @@ feature_file = open("ListOfFeaturesIn" + str(ITERATION_NUMBER) + "thIteration_" 
 for item in list(train.columns.values):
     feature_file.write("%s\n" % item)
 
-# output_matrix.to_csv("outputFeatures.csv", header=False)
+output_matrix.to_csv("outputFeatures.csv", header=False)
 train.to_csv("outputFeaturesTrain.csv", header=False)
 test.to_csv("outputFeaturesTest.csv", header=False)
 

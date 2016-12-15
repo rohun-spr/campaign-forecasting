@@ -1,132 +1,60 @@
 function mlpCode()
 
-TAG = 'TWITTER_ONLY_PROB_0.3_PORTION_LOGSIG_PURELIN';
+TAG = 'TW_FULL_DATA_5_DIFFERENT_MOMENTUMS_FOR_CLUSTERS_CATEGORICAL_NO_CPE';
 
 FEATURE_START_INDEX = 2;
 FEATURE_STOP_INDEX = 12;
 PREDICTION_INDEX = FEATURE_STOP_INDEX + 1;
 
-train_data = csvread('outputFeaturesTrain.csv');
-XTRAIN = train_data(:,FEATURE_START_INDEX:FEATURE_STOP_INDEX)';
-YTRAIN = train_data(:,PREDICTION_INDEX)';
+CLUSTER_COUNT = 5;
+TRAIN_TO_TOTAL = 0.7;
 
-test_data = csvread('outputFeaturesTest.csv');
-XTEST = test_data(:,FEATURE_START_INDEX:FEATURE_STOP_INDEX)';
-YTEST = test_data(:,PREDICTION_INDEX)';
+% test_data = csvread('outputFeaturesTest.csv');
+% XTEST = test_data(:,FEATURE_START_INDEX:FEATURE_STOP_INDEX)';
+% YTEST = test_data(:,PREDICTION_INDEX)';
+
+train_data = csvread('outputFeatures.csv');
+DATA_TOTAL = train_data(:,FEATURE_START_INDEX:PREDICTION_INDEX);
 
 model_error_file_name = strcat('resultant_error/model_error_', TAG, '.csv');
 errorOutFile=fopen(model_error_file_name,'w');
-fprintf(errorOutFile, 'Learning-Rate,Momentum,Hidden-Units,TrainR-Squared,Train-MSE,TestR-Squared,Test-MSE\n');
+fprintf(errorOutFile, 'Learning-Rate,Momentum,Cluster-Number,TrainR-Squared,Train-MSE,TestR-Squared,Test-MSE\n');
 
-% Hidden Layer
+rng(1)
+idx = kmeans(DATA_TOTAL(:,FEATURE_START_INDEX-1:FEATURE_STOP_INDEX-1),CLUSTER_COUNT);
+%idx = kmeans(DATA_TOTAL,CLUSTER_COUNT);
+
+momentum_list = [0.7, 0.7, 0.55, 0.7, 0.7];
+
 size = 5; % Default Hidden Units
-for lr = [0.05]
-    for momentum = [0.6, 0.65, 0.7]
-        net = fitnet(5,'traingdm');
+for clusterNumber = 1:CLUSTER_COUNT
+    CLUSTER_DATA = DATA_TOTAL(idx==clusterNumber,FEATURE_START_INDEX-1:PREDICTION_INDEX-1);
+    
+    train_portion = round(length(CLUSTER_DATA) * TRAIN_TO_TOTAL);
+    XTRAIN = CLUSTER_DATA(1:train_portion,FEATURE_START_INDEX-1:FEATURE_STOP_INDEX-1)';
+    YTRAIN = CLUSTER_DATA(1:train_portion,PREDICTION_INDEX-1)';
+    
+    XTEST = CLUSTER_DATA(train_portion:end,FEATURE_START_INDEX-1:FEATURE_STOP_INDEX-1)';
+    YTEST = CLUSTER_DATA(train_portion:end,PREDICTION_INDEX-1)';
+
+    for lr = [0.05]
+        momentum = momentum_list(clusterNumber);
+        net = fitnet(size,'traincgb');
         net.layers{1}.transferFcn='logsig';
-        net.layers{1}.transferFcn='purelin';
+        net.layers{2}.transferFcn='purelin';
         net.trainParam.lr = lr;
         net.trainParam.mc=momentum;
-
+        
         net.trainParam.epochs = 2000;
         net.performFcn = 'mse';
         net = train(net,XTRAIN,YTRAIN);
-
-        %get the prediction
+        
         YFITTRAIN = net(XTRAIN);
-        
-        rSquaredTrain = justRSquaredError(YTRAIN', YFITTRAIN');
-        mseTrain = perform(net,YTRAIN',YFITTRAIN');
-
-        X = 1:length(XTRAIN);
-        plot(X,YTRAIN,'--go',X,YFITTRAIN',':r*')
-        train_image_name = strcat('images/Train_Plot_size', num2str(size), '_lr_', num2str(lr), '_mc_', num2str(momentum), '_rsquared_', num2str(rSquaredTrain), '_mse_', num2str(mseTrain), TAG, '.png');
-        saveas(gcf, train_image_name);
-        %%%%%%%%%%%%%%%%%%%%%%%%
-
         YTESTFIT = net(XTEST);
-
-        if momentum == 0.6
-            YFITTRAIN_six = YFITTRAIN;
-            YFITTEST_six = YTESTFIT;
-        end
-        if momentum == 0.7
-            YFITTRAIN_seven = YFITTRAIN;
-            YFITTEST_seven = YTESTFIT;
-        end
         
-        rSquaredTest = justRSquaredError(YTEST, YTESTFIT');
-        mseTest = perform(net,YTEST,YTESTFIT');
-
-        X = 1:length(XTEST);
-        plot(X,YTEST,'--go',X,YTESTFIT',':r*')
-        test_image_name = strcat('images/Test_Plot_size', num2str(size), '_lr_', num2str(lr), '_mc_', num2str(momentum), '_rsquared_', num2str(rSquaredTest), '_mse_', num2str(mseTest), TAG, '.png');
-        saveas(gcf, test_image_name);
-
-        prediction_file_name = strcat('predictions/model_predictions_on_TRAIN_size', num2str(size), '_mc_', num2str(momentum), '_lr_', num2str(lr), '_rsquared_', num2str(rSquaredTrain), '_mse_', num2str(mseTrain), TAG, '.csv');
-        fid=fopen(prediction_file_name,'w');
-        fprintf(fid, 'actual,prediction\n');
-        for idx = 1:length(YTRAIN)
-            actual = YTRAIN(idx);
-            prediction = YFITTRAIN(idx);
-            fprintf(fid, '%f,%f\n', actual, prediction);
-        end
-
-        prediction_file_name = strcat('predictions/model_predictions_on_TEST_size', num2str(size), '_mc_', num2str(momentum), '_lr_', num2str(lr), '_rsquared_', num2str(rSquaredTest), '_mse_', num2str(mseTest), TAG, '.csv');
-        fid=fopen(prediction_file_name,'w');
-        fprintf(fid, 'actual,prediction\n');
-        for idx = 1:length(YTEST)
-            actual = YTEST(idx);
-            prediction = YTESTFIT(idx);
-            fprintf(fid, '%f,%f\n', actual, prediction);
-        end
-
-        fprintf(errorOutFile, '%f,%f,%f,%f,%f,%f,%f\n', lr, momentum, size, rSquaredTrain, mseTrain, rSquaredTest, mseTest);
+        printForMLP(clusterNumber, lr, momentum, YTRAIN, YFITTRAIN, 1:length(XTRAIN), YTEST, YTESTFIT, 1:length(XTEST), errorOutFile, TAG)
+        
     end
-    
-    momentum = 0.0607;
-    
-    z = cat(3,YFITTRAIN_six,YFITTRAIN_seven);
-    YFITTRAIN = mean(z,3);
-    
-    z = cat(3,YFITTEST_six,YFITTEST_seven);
-    YTESTFIT = mean(z,3);
-    
-    rSquaredTrain = justRSquaredError(YTRAIN', YFITTRAIN');
-    mseTrain = perform(net,YTRAIN',YFITTRAIN');
-
-    X = 1:length(XTRAIN);
-    plot(X,YTRAIN,'--go',X,YFITTRAIN',':r*')
-    train_image_name = strcat('images/Train_Plot_size', num2str(size), '_lr_', num2str(lr), '_mc_', num2str(momentum), '_rsquared_', num2str(rSquaredTrain), '_mse_', num2str(mseTrain), TAG, '.png');
-    saveas(gcf, train_image_name);
-
-    rSquaredTest = justRSquaredError(YTEST, YTESTFIT');
-    mseTest = perform(net,YTEST,YTESTFIT');
-
-    X = 1:length(XTEST);
-    plot(X,YTEST,'--go',X,YTESTFIT',':r*')
-    test_image_name = strcat('images/Test_Plot_size', num2str(size), '_lr_', num2str(lr), '_mc_', num2str(momentum), '_rsquared_', num2str(rSquaredTest), '_mse_', num2str(mseTest), TAG, '.png');
-    saveas(gcf, test_image_name);
-
-    prediction_file_name = strcat('predictions/model_predictions_on_TRAIN_size', num2str(size), '_mc_', num2str(momentum), '_lr_', num2str(lr), '_rsquared_', num2str(rSquaredTrain), '_mse_', num2str(mseTrain), TAG, '.csv');
-    fid=fopen(prediction_file_name,'w');
-    fprintf(fid, 'actual,prediction\n');
-    for idx = 1:length(YTRAIN)
-        actual = YTRAIN(idx);
-        prediction = YFITTRAIN(idx);
-        fprintf(fid, '%f,%f\n', actual, prediction);
-    end
-
-    prediction_file_name = strcat('predictions/model_predictions_on_TEST_size', num2str(size), '_mc_', num2str(momentum), '_lr_', num2str(lr), '_rsquared_', num2str(rSquaredTest), '_mse_', num2str(mseTest), TAG, '.csv');
-    fid=fopen(prediction_file_name,'w');
-    fprintf(fid, 'actual,prediction\n');
-    for idx = 1:length(YTEST)
-        actual = YTEST(idx);
-        prediction = YTESTFIT(idx);
-        fprintf(fid, '%f,%f\n', actual, prediction);
-    end
-
-    fprintf(errorOutFile, '%f,%f,%f,%f,%f,%f,%f\n', lr, momentum, size, rSquaredTrain, mseTrain, rSquaredTest, mseTest);
 end
 
 end
